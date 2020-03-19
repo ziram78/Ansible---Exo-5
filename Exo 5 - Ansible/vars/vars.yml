@@ -1,0 +1,9 @@
+---
+mysql_db: wordpress
+mysql_user: wordpress
+mysql_password: wordpress
+server_nginx: 192.168.1.50
+server_apache: 192.168.1.45
+server_squid_haproxy: 192.168.1.46
+server_bdd : 192.168.1.47
+plage_ip: 192.168.0.0/16

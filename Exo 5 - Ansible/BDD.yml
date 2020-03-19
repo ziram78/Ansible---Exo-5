@@ -1,0 +1,63 @@
+---
+- name: installation serveur BDD
+  hosts: BDD
+  remote_user: batman
+  become: yes
+  become_method: sudo
+  vars_files:
+    - /etc/ansible/vars/vars.yml
+
+  tasks:
+    - name: Install MySQL
+      package:
+           name: "{{ item }}"
+           state: present
+
+      with_items:
+           - default-mysql-server
+           - default-mysql-client
+           - python3-mysqldb
+
+    - name: Create mysql database
+      mysql_db: name={{ mysql_db }} state=present
+      become: yes
+
+    - name: Create mysql user
+      mysql_user:
+        name={{ mysql_user }}
+        password={{ mysql_password }}
+        priv=*.*:ALL
+
+    - name: Modification IP connexion par celle de la db
+      replace:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '127.0.0.1'
+        replace: '{{ server_bdd }}'
+
+    - name: Autorisation acces a la db pour apache2
+      command: mysql -u root --password=root --execute="GRANT ALL PRIVILEGES ON wordpress.* TO wordpress@'{{ server_apache }}' IDENTIFIED BY 'wordpress'"
+
+    - name: Autorisation acces a la db pour Nginx
+      command: mysql -u root --password=root --execute="GRANT ALL PRIVILEGES ON wordpress.* TO wordpress@'{{ server_nginx }}' IDENTIFIED BY 'wordpress'"
+
+    - name: Restart service mysql pour les modifs
+      command: systemctl restart mysql
+
+    - name: Configuration passage par proxy pour Internet dans fichier environment
+      lineinfile:
+        path: /etc/environment
+        line: 'http_proxy="http://{{ server_squid_haproxy }}:3128/"'
+
+    - name: Reboot la machine pour reload les vars environment
+      reboot:
+
+    - name: regles iptables pour http https ssh mysql et squid
+      command: "{{ item }} "
+      with_items:
+      - iptables -A INPUT -p tcp --dport http -j ACCEPT
+      - iptables -A INPUT -p tcp --dport https -j ACCEPT
+      - iptables -A INPUT -p tcp --dport ssh -j ACCEPT
+      - iptables -A INPUT -p tcp --dport mysql -j ACCEPT
+      - iptables -A INPUT -p tcp --dport 3128 -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport http -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport https -j ACCEPT
